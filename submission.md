@@ -78,3 +78,15 @@ So the mutation and the notification happen back-to-back in the same function ca
 **My fix:** Removed the weekday condition — `elif days_since_last == 1 and today.weekday() != 6` → `elif days_since_last == 1`, so any one-day gap increments regardless of which day of the week it is.
 
 **Side-effect check:** Full suite passes, all 5 tests in `test_streaks.py` including same-day (no double-count) and skipped-day (reset) cases, so the fix didn't loosen the other boundary conditions. `test_playlists.py` and `test_search.py` are unaffected.
+
+### Issue #4 — Notified for playlist adds but not for ratings
+
+**How I reproduced it:** Called `rate_song()` directly in a Python shell with a rater who wasn't the song's sharer, then checked `get_notifications()` for the sharer — it came back empty, confirming ratings never generate a notification while `add_to_playlist()` does.
+
+**How I found the root cause:** Compared `rate_song()` to `add_to_playlist()` in `services/notification_service.py` line-by-line, since both live in the same file and only one of them calls `create_notification()`. `add_to_playlist()` checks `if song.shared_by != added_by_user_id` and notifies; `rate_song()` had no equivalent call at all — it saves the `Rating` and returns.
+
+**The root cause:** `rate_song()` was simply missing the notification step. There's no shared "notify on interaction" mechanism in this codebase — each mutation function has to remember to call `create_notification()` itself, and whoever wrote `rate_song()` never added it.
+
+**My fix:** Added a `create_notification()` call after the rating commits, guarded by `if song.shared_by != user_id` (mirroring `add_to_playlist()`'s self-action guard so you don't get notified for rating your own song), with `notification_type="song_rated"` and a body referencing the rater's username, the song title, and the score.
+
+**Side-effect check:** Manually verified three cases in a Python shell: (1) another user rating a song notifies the sharer, (2) the sharer rating their own song does not self-notify, (3) re-rating the same song (the existing-rating update path) still notifies correctly. Ran the full `pytest tests/` suite afterward — all 13 existing tests still pass, since none of them touch notifications.
