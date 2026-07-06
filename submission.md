@@ -66,3 +66,15 @@ So the mutation and the notification happen back-to-back in the same function ca
 **My fix:** Removed the slice — `[song.to_dict() for song in songs[:-1]]` → `[song.to_dict() for song in songs]`.
 
 **Side-effect check:** Full suite passes for `test_playlists.py` (all 3 tests, including empty-playlist and ordering cases). No other test file touches this function, and `test_search.py`/`test_streaks.py` are unaffected.
+
+### Issue #1 — Listening streak keeps resetting
+
+**How I reproduced it:** Ran `pytest tests/test_streaks.py` before changing anything. `test_streak_increments_on_sunday` simulates listening on Saturday then Sunday and expects the streak to go from 1 to 2 — it failed, staying at 1.
+
+**How I found the root cause:** Traced from the failing test into `update_listening_streak()` in `services/streak_service.py`. The increment branch read `elif days_since_last == 1 and today.weekday() != 6`, so a one-day gap only incremented the streak on every day except Sunday.
+
+**The root cause:** Python's `datetime.weekday()` returns `6` for Sunday, so the extra `and today.weekday() != 6` condition specifically excluded Sundays from the normal "consecutive day" increment path, sending them to the `else` branch instead, which resets the streak to 1.
+
+**My fix:** Removed the weekday condition — `elif days_since_last == 1 and today.weekday() != 6` → `elif days_since_last == 1`, so any one-day gap increments regardless of which day of the week it is.
+
+**Side-effect check:** Full suite passes, all 5 tests in `test_streaks.py` including same-day (no double-count) and skipped-day (reset) cases, so the fix didn't loosen the other boundary conditions. `test_playlists.py` and `test_search.py` are unaffected.
