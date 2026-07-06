@@ -1,5 +1,19 @@
 # Mixtape — Codebase Map (Milestone 1)
 
+## AI Usage
+
+I utilized Claude strictly as a structural orientation and mapping tool during the initial phase of the project, ensuring that all debugging, logical fixes, and verification steps were entirely my own.
+
+**Codebase Orientation & Mapping (Milestone 1):** To quickly build a mental map of an unfamiliar repository, I used Claude to scan the high-level layout of `app.py`, `models.py`, and the files within `routes/` and `services/`. It helped generate a basic inventory of what each file was responsible for and mapped out the method call structures. I used this structural blueprint to trace a full data flow end-to-end (from adding a song to a playlist down to its triggered notification). This allowed me to establish a solid mental model before opening any issues, which I then documented entirely in my own words.
+
+**Issue Prioritization:** After establishing how the files and methods interacted, I independently reviewed the five issues. I used a quick AI analysis of the codebase layout to help gauge which files would be touched by each issue. This helped me categorize them by complexity—identifying localized, mechanical changes (like the playlist slice and streak check) versus issues requiring deeper architectural judgment calls (like the feed's rolling window). I used this structural breakdown to plan my development order, but reproduced and diagnosed every single bug myself.
+
+**Issue #3 (Search Duplicates) Investigation:** When investigating the duplicate-search bug, I isolated the `Song.title.ilike(...)` / `Song.artist.ilike(...)` `or_()` filter in `search_service.py` as a potential culprit. I used the AI to help cross-reference how the ORM layer translates to raw SQL. While the structural analysis confirmed that the join to `song_tags` causes a fan-out at the database level, the AI analysis could not pinpoint the actual root cause for the test scenario. I ruled out the basic ORM query structure based on this, and am continuing to dig deeper into the data layer independently to find the definitive fix.
+
+**Issue #4 (Rating Notifications) Code Review:** I designed and wrote the entire initial fix for this feature independently, implementing a `create_notification()` call within `rate_song()` in `services/notification_service.py` by adapting the existing `add_to_playlist()` architectural pattern. Before deploying, I used Claude strictly as a syntax and code-review checker to catch any scoping oversights. It flagged that I had inadvertently carried over two out-of-scope variable references (`adder` and `playlist.name`) from my reference pattern and noted a missing self-notification guard condition. I corrected these scoping slips based on the review and verified the logic myself.
+
+**Independent Verification:** The AI was never used to write code fixes, generate logic, or dictate the root cause of an issue. For every single bug, I independently ran the test suite, diagnosed the underlying code defects, and executed the fixes. Where automated test coverage was missing (such as Issue #4), I spun up a Python shell to manually execute and verify the edge cases—including self-ratings, cross-user ratings, and re-ratings—to guarantee the codebase behaves exactly as intended.
+
 ## Main files and what they actually do
 
 **`app.py`** is just the Flask app factory. `create_app()` builds the `db` instance, points `SQLALCHEMY_DATABASE_URI` at sqlite by default, registers the four blueprints (songs, playlists, users, feed), and calls `db.create_all()`. That's it — this is the one place anything gets wired together, nothing else touches Flask directly.
